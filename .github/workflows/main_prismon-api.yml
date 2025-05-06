@@ -1,83 +1,58 @@
-trigger:
-  branches:
-    include:
+# Workflow for deploying .NET Core app to Azure with EF migrations and Redis cache flush
+
+name: Build and deploy ASP.Net Core app to Azure Web App - prismon-api
+
+on:
+  push:
+    branches:
       - main
+  workflow_dispatch:
 
-pool:
-  vmImage: 'ubuntu-latest'
-
-variables:
-  buildConfiguration: 'Release'
-  azureSubscription: 'prismon-azure-connection'
-  webAppName: 'prismon-api'
-  resourceGroup: 'prismon-rg'
-  redisCacheName: 'prismon-redis'
-
-steps:
-- task: UseDotNet@2
-  inputs:
-    packageType: 'sdk'
-    version: '8.x'
-
-- task: DotNetCoreCLI@2
-  displayName: 'Restore dependencies'
-  inputs:
-    command: 'restore'
-    projects: '**/*.csproj'
-
-- task: DotNetCoreCLI@2
-  displayName: 'Build project'
-  inputs:
-    command: 'build'
-    projects: '**/*.csproj'
-    arguments: '--configuration $(buildConfiguration) --no-restore'
-
-- task: DotNetCoreCLI@2
-  displayName: 'Run tests'
-  inputs:
-    command: 'test'
-    projects: '**/*Tests.csproj'
-    arguments: '--configuration $(buildConfiguration) --no-build --no-restore'
-
-- task: DotNetCoreCLI@2
-  displayName: 'Publish project'
-  inputs:
-    command: 'publish'
-    publishWebProjects: true
-    arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/webapp --no-restore'
-    zipAfterPublish: true
-
-- task: DotNetCoreCLI@2
-  displayName: 'Apply EF Core migrations to Supabase'
-  inputs:
-    command: 'custom'
-    custom: 'ef'
-    arguments: 'database update --project Prismon.Api.csproj --context PrismonDbContext'
-  env:
-    SUPABASE_CONNECTION_STRING: $(SUPABASE_CONNECTION_STRING) # Secure variable
-
-- task: PublishBuildArtifacts@1
-  displayName: 'Publish artifacts'
-  inputs:
-    pathToPublish: '$(Build.ArtifactStagingDirectory)'
-    artifactName: 'webapp'
-    publishLocation: 'Container'
-
-- task: AzureCLI@2
-  displayName: 'Flush Azure Cache for Redis'
-  inputs:
-    azureSubscription: '$(azureSubscription)'
-    scriptType: 'pscore'
-    scriptLocation: 'inlineScript'
-    inlineScript: |
-      az redis flush --name $(redisCacheName) --resource-group $(resourceGroup) --confirm
-
-- task: AzureWebApp@1
-  displayName: 'Deploy to Azure App Service'
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-  inputs:
-    azureSubscription: '$(azureSubscription)'
-    appType: 'webAppLinux'
-    appName: '$(webAppName)'
-    package: '$(Build.ArtifactStagingDirectory)/webapp/**/*.zip'
-    deploymentMethod: 'zipDeploy'
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up .NET Core
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+      
+      - name: Restore dependencies
+        run: dotnet restore
+      
+      - name: Build project
+        run: dotnet build --configuration Release --no-restore
+      
+      - name: Run tests
+        run: dotnet test --configuration Release --no-build --no-restore
+      
+      - name: Publish project
+        run: dotnet publish --configuration Release --output ./publish --no-restore
+      
+      - name: Apply EF Core migrations
+        run: dotnet ef database update --project Prismon.Api.csproj --context PrismonDbContext
+        env:
+          SUPABASE_CONNECTION_STRING: ${{ secrets.SUPABASE_CONNECTION_STRING }}
+      
+      - name: Install Azure CLI
+        uses: azure/CLI@v1
+      
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      - name: Flush Azure Cache for Redis
+        run: |
+          az redis flush --name prismon-redis --resource-group prismon-rg --confirm
+      
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'prismon-api'
+          slot-name: 'Production'
+          package: ./publish
+          publish-profile: ${{ secrets.PRISMON_DEPLOY_SECRET }}
