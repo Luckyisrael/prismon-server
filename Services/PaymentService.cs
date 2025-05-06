@@ -15,17 +15,22 @@ namespace Prismon.Api.Services
         private readonly PayStackApi _paystack;
         private readonly ILogger<PaymentService> _logger;
         private readonly PaystackConfig _config;
+        private readonly IConfiguration _configuration;
 
-        public PaymentService(IOptions<PaystackConfig> config, ILogger<PaymentService> logger)
+        public PaymentService(IOptions<PaystackConfig> options, ILogger<PaymentService> logger)
         {
-            _config = config.Value;
             _logger = logger;
+            _config = options.Value;
 
-            if (string.IsNullOrWhiteSpace("sk_test_11fba9b23756b99d7c5bdbb56131bf6e329c39c7"))
+            var secretKeyExists = Environment.GetEnvironmentVariable("PAYSTACK_SECRET_KEY") ?? _configuration["Paystack:SecretKey"];
+            var callbackUrlExists = Environment.GetEnvironmentVariable("PAYSTACK_CALLBACK_URL")?? _configuration["Paystack:CallbackUrl"];
+            if (string.IsNullOrEmpty(secretKeyExists) || string.IsNullOrEmpty(callbackUrlExists))
+            {
+                _logger.LogError("Paystack:SecretKey is missing from configuration. Please check your appsettings.json or environment variables.");
                 throw new InvalidOperationException("Paystack secret key is missing from configuration.");
+            }
 
-            _paystack = new PayStackApi("sk_test_11fba9b23756b99d7c5bdbb56131bf6e329c39c7");
-            
+            _paystack = new PayStackApi(secretKeyExists);
         }
 
         public async Task<string> InitializePaymentAsync(string email, string tier, decimal amount, string currency, string reference)
@@ -35,10 +40,10 @@ namespace Prismon.Api.Services
                 var request = new TransactionInitializeRequest
                 {
                     Email = email,
-                    AmountInKobo = Convert.ToInt32(amount * 100),
+                    AmountInKobo = Convert.ToInt32(amount * 100), // Paystack expects kobo for NGN, cents for USD
                     Currency = currency,
                     Reference = reference,
-                    CallbackUrl = _config.CallbackUrl, // Should be provided in config
+                    CallbackUrl = _config.CallbackUrl,
                     //Metadata = new { tier }
                 };
 
@@ -83,7 +88,7 @@ namespace Prismon.Api.Services
     public class PaystackConfig
     {
         public string SecretKey { get; set; } = string.Empty;
-        public string CallbackUrl { get; set; } = string.Empty; // NEW: to avoid hardcoded URL
+        public string CallbackUrl { get; set; } = string.Empty;
         public decimal PremiumPlanPriceUSD { get; set; }
         public decimal PremiumPlanPriceNGN { get; set; }
     }

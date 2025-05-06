@@ -196,12 +196,12 @@ public class AppsController : ControllerBase
             await _dbContext.SaveChangesAsync();
 
             _logger.LogInformation("Payment verified and upgrade completed for User {UserId} to {Tier}", userIdString, user.Tier);
-            return Redirect("https://your-app.com/payment/success");
+            return Redirect("https://prismon-api.azurewebsites.net");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to process payment callback for Reference: {Reference}", reference);
-            return Redirect("https://your-app.com/payment/failure");
+            return Redirect("https://prismon-api.azurewebsites.net");
         }
     }
 }
