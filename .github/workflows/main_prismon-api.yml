@@ -1,4 +1,4 @@
-# Workflow for deploying .NET Core app to Azure with EF migrations and Redis cache flush
+# Workflow for deploying .NET Core app to Azure
 
 name: Build and deploy ASP.Net Core app to Azure Web App - prismon-api
 
@@ -39,17 +39,6 @@ jobs:
         run: dotnet ef database update --project Prismon.Api.csproj --context PrismonDbContext
         env:
           SUPABASE_CONNECTION_STRING: ${{ secrets.SUPABASE_CONNECTION_STRING }}
-      
-      - name: Login to Azure
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-      
-      - name: Flush Azure Cache for Redis
-        uses: azure/CLI@v1
-        with:
-          inlineScript: |
-            az redis flush --name prismon-redis --resource-group prismon-rg --confirm
       
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
