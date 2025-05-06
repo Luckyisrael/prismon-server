@@ -17,11 +17,12 @@ namespace Prismon.Api.Services
         private readonly PaystackConfig _config;
         private readonly IConfiguration _configuration;
 
-        public PaymentService(IOptions<PaystackConfig> options, ILogger<PaymentService> logger)
+        public PaymentService(IConfiguration configuration, IOptions<PaystackConfig> options, ILogger<PaymentService> logger)
         {
             _logger = logger;
             _config = options.Value;
-
+            _configuration = configuration;
+            
             var secretKeyExists = Environment.GetEnvironmentVariable("PAYSTACK_SECRET_KEY") ?? _configuration["Paystack:SecretKey"];
             var callbackUrlExists = Environment.GetEnvironmentVariable("PAYSTACK_CALLBACK_URL")?? _configuration["Paystack:CallbackUrl"];
             if (string.IsNullOrEmpty(secretKeyExists) || string.IsNullOrEmpty(callbackUrlExists))
