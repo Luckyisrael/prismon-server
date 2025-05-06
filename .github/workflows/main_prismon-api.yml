@@ -1,58 +1,92 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-
-name: Build and deploy ASP.Net Core app to Azure Web App - prismon-api
-
-on:
-  push:
-    branches:
+trigger:
+  branches:
+    include:
       - main
-  workflow_dispatch:
 
-jobs:
-  build:
-    runs-on: windows-latest
-    permissions:
-      contents: read #This is required for actions/checkout
+pool:
+  vmImage: 'ubuntu-latest'
 
-    steps:
-      - uses: actions/checkout@v4
+variables:
+  buildConfiguration: 'Release'
+  azureSubscription: 'prismon-azure-connection'
+  webAppName: 'prismon-api'
+  resourceGroup: 'prismon-rg'
+  redisCacheName: 'prismon-redis'
 
-      - name: Set up .NET Core
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.x'
+steps:
+- task: UseDotNet@2
+  inputs:
+    packageType: 'sdk'
+    version: '8.x'
 
-      - name: Build with dotnet
-        run: dotnet build --configuration Release
+- task: DotNetCoreCLI@2
+  displayName: 'Restore dependencies'
+  inputs:
+    command: 'restore'
+    projects: '**/*.csproj'
 
-      - name: dotnet publish
-        run: dotnet publish -c Release -o "${{env.DOTNET_ROOT}}/myapp"
+- task: DotNetCoreCLI@2
+  displayName: 'Build project'
+  inputs:
+    command: 'build'
+    projects: '**/*.csproj'
+    arguments: '--configuration $(buildConfiguration) --no-restore'
 
-      - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v4
-        with:
-          name: .net-app
-          path: ${{env.DOTNET_ROOT}}/myapp
+- task: DotNetCoreCLI@2
+  displayName: 'Run tests'
+  inputs:
+    command: 'test'
+    projects: '**/*Tests.csproj'
+    arguments: '--configuration $(buildConfiguration) --no-build --no-restore'
 
-  deploy:
-    runs-on: windows-latest
-    needs: build
-    environment:
-      name: 'Production'
-      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
-    
-    steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v4
-        with:
-          name: .net-app
-      
-      - name: Deploy to Azure Web App
-        id: deploy-to-webapp
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: 'prismon-api'
-          slot-name: 'Production'
-          package: .
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_437651DAC0C04682AFED1ABB2738DC8F }}
+- task: DotNetCoreCLI@2
+  displayName: 'Publish project'
+  inputs:
+    command: 'publish'
+    publishWebProjects: true
+    arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/webapp --no-restore'
+    zipAfterPublish: true
+
+- task: DotNetCoreCLI@2
+  displayName: 'Apply EF Core migrations to Supabase'
+  inputs:
+    command: 'custom'
+    custom: 'ef'
+    arguments: 'database update --project Prismon.Api.csproj --context PrismonDbContext'
+  env:
+    SUPABASE_CONNECTION_STRING: $(SUPABASE_CONNECTION_STRING) # Secure variable
+
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish artifacts'
+  inputs:
+    pathToPublish: '$(Build.ArtifactStagingDirectory)'
+    artifactName: 'webapp'
+    publishLocation: 'Container'
+
+- task: AzureCLI@2
+  displayName: 'Flush Azure Cache for Redis'
+  inputs:
+    azureSubscription: '$(azureSubscription)'
+    scriptType: 'pscore'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      az redis flush --name $(redisCacheName) --resource-group $(resourceGroup) --confirm
+
+- task: AzureWebApp@1
+  displayName: 'Deploy to Azure App Service'
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  inputs:
+    azureSubscription: '$(azureSubscription)'
+    appType: 'webAppLinux'
+    appName: '$(webAppName)'
+    package: '$(Build.ArtifactStagingDirectory)/webapp/**/*.zip'
+    deploymentMethod: 'zipDeploy'
+
+- task: AzureCLI@2
+  displayName: 'Clean up old artifacts'
+  inputs:
+    azureSubscription: '$(azureSubscription)'
+    scriptType: 'pscore'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      az pipelines builds delete --id $(Build.BuildId) --project $(System.TeamProject) --keep-forever false
