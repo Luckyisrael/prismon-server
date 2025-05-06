@@ -46,4 +46,4 @@ jobs:
           app-name: 'prismon-api'
           slot-name: 'Production'
           package: ./publish
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_437651DAC0C04682AFED1ABB2738DC8F }}
+          publish-profile: ${{ secrets.PRISMON_DEPLOY_SECRET }}
