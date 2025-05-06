@@ -81,12 +81,3 @@ steps:
     appName: '$(webAppName)'
     package: '$(Build.ArtifactStagingDirectory)/webapp/**/*.zip'
     deploymentMethod: 'zipDeploy'
-
-- task: AzureCLI@2
-  displayName: 'Clean up old artifacts'
-  inputs:
-    azureSubscription: '$(azureSubscription)'
-    scriptType: 'pscore'
-    scriptLocation: 'inlineScript'
-    inlineScript: |
-      az pipelines builds delete --id $(Build.BuildId) --project $(System.TeamProject) --keep-forever false
