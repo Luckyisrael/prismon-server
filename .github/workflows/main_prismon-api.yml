@@ -20,6 +20,9 @@ jobs:
         with:
           dotnet-version: '8.x'
       
+      - name: Install EF Core tools
+        run: dotnet tool install --global dotnet-ef
+      
       - name: Restore dependencies
         run: dotnet restore
       
@@ -37,17 +40,16 @@ jobs:
         env:
           SUPABASE_CONNECTION_STRING: ${{ secrets.SUPABASE_CONNECTION_STRING }}
       
-      - name: Install Azure CLI
-        uses: azure/CLI@v1
-      
       - name: Login to Azure
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
       
       - name: Flush Azure Cache for Redis
-        run: |
-          az redis flush --name prismon-redis --resource-group prismon-rg --confirm
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            az redis flush --name prismon-redis --resource-group prismon-rg --confirm
       
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
@@ -55,4 +57,4 @@ jobs:
           app-name: 'prismon-api'
           slot-name: 'Production'
           package: ./publish
-          publish-profile: ${{ secrets.PRISMON_DEPLOY_SECRET }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_437651DAC0C04682AFED1ABB2738DC8F }}
