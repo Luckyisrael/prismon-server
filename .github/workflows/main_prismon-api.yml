@@ -50,7 +50,7 @@ jobs:
           echo "Listing migrations:"
           dotnet ef migrations list --project Prismon.Api.csproj --context PrismonDbContext --verbose
           
-          # Then apply migrations with detailed output
+          # Then apply the migrations with detailed output
           echo "Applying migrations:"
           dotnet ef database update --project Prismon.Api.csproj --context PrismonDbContext --verbose
         env:
