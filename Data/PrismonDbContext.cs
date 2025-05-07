@@ -5,7 +5,7 @@ using Prismon.Api.Models;
 
 namespace Prismon.Api.Data;
 
-public class PrismonDbContext : IdentityDbContext<ApplicationUser>
+public class PrismonDbContext : DbContext
 {
     public DbSet<Organization> Organizations { get; set; }
     public DbSet<App> Apps { get; set; }

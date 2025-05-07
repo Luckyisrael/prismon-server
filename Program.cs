@@ -13,6 +13,7 @@ using Microsoft.Extensions.Options;
 using DotNetEnv;
 using Prismon.Api.Interface;
 using Prismon.Api.Models;
+using Prismon.Api.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -204,6 +205,7 @@ builder.Services.AddHttpContextAccessor();
 
 var app = builder.Build();
 
+await app.ApplyMigrationsAsync<PrismonDbContext>();
 // Startup Validation
 using (var scope = app.Services.CreateScope())
 {
