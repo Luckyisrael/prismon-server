@@ -33,23 +33,30 @@ builder.Services.AddLogging(logging =>
     logging.SetMinimumLevel(LogLevel.Debug);
 });
 
-// Database
+// Database Configuration
 var isDevelopment = builder.Environment.IsDevelopment();
 var connectionString = isDevelopment
     ? builder.Configuration.GetConnectionString("DefaultConnection")
     : Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING") ?? 
       builder.Configuration.GetConnectionString("Supabase");
 
+if (string.IsNullOrEmpty(connectionString))
+{
+    throw new InvalidOperationException("Database connection string is not configured");
+}
+
 builder.Services.AddDbContext<PrismonDbContext>(options =>
 {
-    if (isDevelopment)
+    options.UseNpgsql(connectionString, npgsqlOptions =>
     {
-        options.UseSqlite(connectionString);
-    }
-    else
-    {
-        options.UseNpgsql(connectionString);
-    }
+        npgsqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null);
+
+        AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
+        npgsqlOptions.CommandTimeout(60);
+
+        npgsqlOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
+    });
 });
 
 // Identity
@@ -142,14 +149,14 @@ builder.Services.AddHttpClient<IPythPriceFeedService, PythPriceFeedService>();
 
 // Services
 var solanaConfig = builder.Configuration.GetSection("SolanaConfig").Get<SolanaConfig>();
-var rpcUrl = Environment.GetEnvironmentVariable("SOLANA_RPC_URL") ?? 
-             solanaConfig?.RpcUrl ?? 
-             "https://api.devnet.solana.com"; 
+var rpcUrl = Environment.GetEnvironmentVariable("SOLANA_RPC_URL") ??
+             solanaConfig?.RpcUrl ??
+             "https://api.devnet.solana.com";
 if (string.IsNullOrEmpty(rpcUrl))
 {
     throw new InvalidOperationException("Solana RPC URL is missing or invalid.");
 }
-builder.Services.AddSingleton<IRpcClient>(sp => 
+builder.Services.AddSingleton<IRpcClient>(sp =>
     ClientFactory.GetClient(rpcUrl));
 builder.Services.AddScoped<ISolanaService, SolanaService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -170,7 +177,7 @@ builder.Services.AddHostedService<ApiUsageCleanupService>();
 
 
 // Caching
-var redisConnection = Environment.GetEnvironmentVariable("REDIS_CONNECTION_STRING") ?? 
+var redisConnection = Environment.GetEnvironmentVariable("REDIS_CONNECTION_STRING") ??
                      builder.Configuration["Redis:ConnectionString"];
 if (!string.IsNullOrEmpty(redisConnection))
 {
@@ -231,14 +238,8 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<PrismonDbContext>();
     try
     {
-        if (builder.Environment.IsDevelopment())
-        {
-            dbContext.Database.EnsureCreated(); // SQLite: Create database
-        }
-        else
-        {
-            dbContext.Database.Migrate(); // Supabase: Apply migrations
-        }
+        dbContext.Database.Migrate();
+
     }
     catch (Exception ex)
     {
@@ -261,7 +262,7 @@ else
 
 app.UseCors("AllowAll");
 app.UseMiddleware<RateLimitMiddleware>();
-app.UseApiKeyAuthentication(); 
+app.UseApiKeyAuthentication();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

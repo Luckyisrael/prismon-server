@@ -5,7 +5,7 @@ using Prismon.Api.Models;
 
 namespace Prismon.Api.Data;
 
-public class PrismonDbContext : DbContext
+public class PrismonDbContext : IdentityDbContext<ApplicationUser>
 {
     public DbSet<Organization> Organizations { get; set; }
     public DbSet<App> Apps { get; set; }
@@ -90,10 +90,13 @@ public class PrismonDbContext : DbContext
             .HasIndex(i => i.UserId);
         // Index for performance
         builder.Entity<ApiUsage>()
+            .Property(u => u.Timestamp)
+            .HasColumnType("timestamp without time zone");
+
+        builder.Entity<ApiUsage>()
             .HasIndex(u => new { u.AppId, u.Timestamp })
             .HasDatabaseName("IX_ApiUsages_AppId_Timestamp");
 
-        // Configure relationships
         builder.Entity<ApiUsage>()
             .HasOne(u => u.App)
             .WithMany()
