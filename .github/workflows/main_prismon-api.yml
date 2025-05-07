@@ -1,4 +1,4 @@
-# Workflow for deploying .NET Core app to Azure
+# Workflow for deploying .NET Core app to Azure with enhanced EF Core migration handling
 
 name: Build and deploy ASP.Net Core app to Azure Web App - prismon-api
 
@@ -35,10 +35,31 @@ jobs:
       - name: Publish project
         run: dotnet publish --configuration Release --output ./publish --no-restore
       
-      - name: Apply EF Core migrations
-        run: dotnet ef database update --project Prismon.Api.csproj --context PrismonDbContext
+      # Enhanced EF Core migration step with better error handling and detailed output
+      - name: Debug project structure for migrations
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Project files:"
+          find . -name "*.csproj" | sort
+          echo "Context files:"
+          find . -name "*Context.cs" | sort
+      
+      - name: Apply EF Core migrations with verbose output
+        run: |
+          # First list migrations to verify connection and context
+          echo "Listing migrations:"
+          dotnet ef migrations list --project Prismon.Api.csproj --context PrismonDbContext --verbose
+          
+          # Then apply migrations with detailed output
+          echo "Applying migrations:"
+          dotnet ef database update --project Prismon.Api.csproj --context PrismonDbContext --verbose
         env:
           SUPABASE_CONNECTION_STRING: ${{ secrets.SUPABASE_CONNECTION_STRING }}
+      
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          publish-profile: ${{ secrets.PRISMON_DEPLOY_SECRET }}
       
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
@@ -46,4 +67,3 @@ jobs:
           app-name: 'prismon-api'
           slot-name: 'Production'
           package: ./publish
-          publish-profile: ${{ secrets.PRISMON_DEPLOY_SECRET }}
