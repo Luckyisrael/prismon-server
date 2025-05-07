@@ -56,14 +56,12 @@ jobs:
         env:
           SUPABASE_CONNECTION_STRING: ${{ secrets.SUPABASE_CONNECTION_STRING }}
       
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          publish-profile: ${{ secrets.PRISMON_DEPLOY_SECRET }}
-      
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'prismon-api'
           slot-name: 'Production'
           package: ./publish
+          publish-profile: ${{ secrets.PRISMON_DEPLOY_SECRET }}
+
+          
