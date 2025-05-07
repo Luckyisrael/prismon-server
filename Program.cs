@@ -41,7 +41,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 // In production (including CI/CD), always use Supabase
 if (!builder.Environment.IsDevelopment())
 {
-    connectionString = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING") 
+    connectionString = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING")
         ?? throw new InvalidOperationException("Supabase connection string is required in production");
 }
 
@@ -255,6 +255,22 @@ else
 {
     app.UseHsts();
     app.UseHttpsRedirection();
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Prismon API v1");
+
+
+        c.RoutePrefix = "api/swagger"; // More secure path
+        c.ConfigObject.AdditionalItems["persistAuthorization"] = "true";
+
+    });
+
+    app.Use((context, next) =>
+    {
+        context.Request.Scheme = "https";
+        return next();
+    });
 }
 
 app.UseCors("AllowAll");
