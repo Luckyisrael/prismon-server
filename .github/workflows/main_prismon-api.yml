@@ -14,7 +14,7 @@ env:
   AZURE_WEBAPP_PUBLISH_PATH: './Prismon.Api/publish'
   DOTNET_VERSION: '8.x'
   SOLUTION_FILE_PATH: 'Prismon.Api.sln'
-  API_PROJECT_PATH: 'Prismon.Api.csproj'
+  API_PROJECT_PATH: 'Prismon.Api'
   PUBLISH_DIRECTORY: './publish'
 
 jobs:
@@ -44,7 +44,7 @@ jobs:
         run: dotnet test --configuration Release --no-build --no-restore
       
       - name: Publish project
-        run: dotnet publish ${{ env.SOLUTION_FILE_PATH }} --configuration Release --no-restore --no-build --property:PublishDir=${{ env.SOLUTION_FILE_PATH }}
+        run: dotnet publish ${{ env.API_PROJECT_PATH }} --configuration Release --no-restore --no-build --property:PublishDir=${{ env.PUBLISH_DIRECTORY }}
       
       #Store the published out as an artifact for later use
       - name: Archive publish folder
