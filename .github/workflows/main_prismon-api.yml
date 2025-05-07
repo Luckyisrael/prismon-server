@@ -11,41 +11,41 @@ on:
 env:
   AZURE_WEBAPP_NAME: prismon-api
   AZURE_RESOURCE_GROUP: prismon-rg
-  AZURE_WEBAPP_PUBLISH_PATH: './publish'
-  DOTNET_VERSION: '8.x'
-  SOLUTION_FILE_PATH: 'Prismon.Api.sln'
-  API_PROJECT_PATH: 'Prismon.Api.csproj'
-  PUBLISH_DIRECTORY: './publish'
+  AZURE_WEBAPP_PUBLISH_PATH: "./publish"
+  DOTNET_VERSION: "8.x"
+  SOLUTION_FILE_PATH: "Prismon.Api.sln"
+  API_PROJECT_PATH: "Prismon.Api.csproj"
+  PUBLISH_DIRECTORY: "./publish"
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up .NET Core
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-      
+
       - name: Install EF Core tools
         run: dotnet tool install --global dotnet-ef
-      
+
       - name: Restore dependencies
         run: dotnet restore ${{ env.SOLUTION_FILE_PATH }}
-      
+
       - name: Build project
-        run: dotnet build ${{ env.SOLUTION_FILE_PATH }} 
-            --configuration Release 
-            --no-restore
-      
+        run: dotnet build ${{ env.SOLUTION_FILE_PATH }}
+          --configuration Release
+          --no-restore
+
       - name: Run tests
         run: dotnet test --configuration Release --no-build --no-restore
-      
+
       - name: Publish project
         run: dotnet publish ${{ env.API_PROJECT_PATH }} --configuration Release --no-restore --no-build --property:PublishDir=${{ env.PUBLISH_DIRECTORY }}
-      
+
       #Store the published out as an artifact for later use
       - name: Archive publish folder
         uses: actions/upload-artifact@v4
@@ -61,39 +61,43 @@ jobs:
           find . -name "*.csproj" | sort
           echo "Context files:"
           find . -name "*Context.cs" | sort
-      
+
       - name: Apply EF Core migrations with verbose output
         run: |
           # First list migrations to verify connection and context
           echo "Listing migrations:"
-          dotnet ef migrations list --project Prismon.Api.csproj --context PrismonDbContext --verbose
-          
+          dotnet ef migrations list \
+            --project ${{ env.API_PROJECT_PATH }} \
+            --context PrismonDbContext \
+            --verbose
+
           # Then apply the migrations with detailed output
           echo "Applying migrations:"
-          dotnet ef database update --project Prismon.Api.csproj --context PrismonDbContext --verbose
+          dotnet ef database update \
+            --project ${{ env.API_PROJECT_PATH }} \
+            --context PrismonDbContext \
+            --verbose
         env:
+          ASPNETCORE_ENVIRONMENT: "Production" # This is crucial
           SUPABASE_CONNECTION_STRING: ${{ secrets.SUPABASE_CONNECTION_STRING }}
 
   deploy:
-      name: Deploy to Azure Web App
-      runs-on: ubuntu-latest
-      needs: [build-and-test]
+    name: Deploy to Azure Web App
+    runs-on: ubuntu-latest
+    needs: [build-and-test]
 
-      steps:
+    steps:
       #Retrieve the published artifact from the previous job
       - name: Download published artifact
         uses: actions/download-artifact@v4
         with:
           name: publish
           path: ${{ env.AZURE_WEBAPP_PUBLISH_PATH }}
-      
+
       - name: Deploy
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'prismon-api'
-          slot-name: 'Production'
+          app-name: "prismon-api"
+          slot-name: "Production"
           publish-profile: ${{ secrets.PRISMON_DEPLOY_SECRET }}
           package: ${{ env.AZURE_WEBAPP_PUBLISH_PATH }}
-          
-
-          

@@ -35,14 +35,14 @@ builder.Services.AddLogging(logging =>
 
 // Database Configuration
 var isDevelopment = builder.Environment.IsDevelopment();
-var connectionString = isDevelopment
-    ? builder.Configuration.GetConnectionString("DefaultConnection")
-    : Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING") ?? 
-      builder.Configuration.GetConnectionString("Supabase");
+// Database Configuration - Updated version
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
-if (string.IsNullOrEmpty(connectionString))
+// In production (including CI/CD), always use Supabase
+if (!builder.Environment.IsDevelopment())
 {
-    throw new InvalidOperationException("Database connection string is not configured");
+    connectionString = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING") 
+        ?? throw new InvalidOperationException("Supabase connection string is required in production");
 }
 
 builder.Services.AddDbContext<PrismonDbContext>(options =>
@@ -50,11 +50,8 @@ builder.Services.AddDbContext<PrismonDbContext>(options =>
     options.UseNpgsql(connectionString, npgsqlOptions =>
     {
         npgsqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null);
-
         AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
-
         npgsqlOptions.CommandTimeout(60);
-
         npgsqlOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
     });
 });
