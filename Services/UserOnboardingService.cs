@@ -83,101 +83,108 @@ public class UserOnboardingService : IUserOnboardingService
         }
     }
 
-public async Task<UserOnboardingResponse> ConnectWalletAsync(App app, string walletPublicKey, string signature)
+    public async Task<UserOnboardingResponse> ConnectWalletAsync(App app, string walletPublicKey, string signature)
 {
-  try
-  {
-    _logger.LogInformation("Attempting to sign up with wallet {Wallet} for AppId {AppId}", walletPublicKey, app.Id);
-
-    if (string.IsNullOrEmpty(walletPublicKey) || string.IsNullOrEmpty(signature))
-    {
-      _logger.LogWarning("Invalid input: WalletPublicKey or Signature is empty for AppId {AppId}", app.Id);
-      return new UserOnboardingResponse { Succeeded = false, Message = "Wallet public key or signature is empty" };
-    }
-
-    var message = $"Prismon:signup:{app.Id.ToString().ToLower()}:{walletPublicKey}";
-    PublicKey publicKey;
     try
     {
-      publicKey = new PublicKey(walletPublicKey);
+        _logger.LogInformation("Attempting to sign up with wallet {Wallet} for AppId {AppId}", walletPublicKey, app.Id);
+
+        if (string.IsNullOrEmpty(walletPublicKey) || string.IsNullOrEmpty(signature))
+        {
+            _logger.LogWarning("Invalid input: WalletPublicKey or Signature is empty for AppId {AppId}", app.Id);
+            return new UserOnboardingResponse { Succeeded = false, Message = "Wallet public key or signature is empty" };
+        }
+
+        // Create exactly the same message format as in the SDK
+        var message = $"Prismon:signup:{app.Id.ToString().ToLower()}:{walletPublicKey}";
+        _logger.LogDebug("Message for verification: {Message}", message);
+
+        PublicKey publicKey;
+        try
+        {
+            publicKey = new PublicKey(walletPublicKey);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Invalid public key: {WalletPublicKey}", walletPublicKey);
+            return new UserOnboardingResponse { Succeeded = false, Message = "Invalid public key" };
+        }
+
+        byte[] signatureBytes;
+        try
+        {
+            signatureBytes = Encoders.Base58.DecodeData(signature);
+            if (signatureBytes.Length != 64)
+            {
+                _logger.LogWarning("Signature length is {Length}, expected 64 bytes for wallet {Wallet}, AppId {AppId}",
+                  signatureBytes.Length, walletPublicKey, app.Id);
+                return new UserOnboardingResponse { Succeeded = false, Message = "Invalid signature length" };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to decode Base58 signature for wallet {Wallet}, AppId {AppId}",
+              walletPublicKey, app.Id);
+            return new UserOnboardingResponse { Succeeded = false, Message = "Invalid Base58 signature" };
+        }
+
+        // Convert message to bytes - exact same as in the login function
+        var messageBytes = Encoding.UTF8.GetBytes(message);
+        
+        // Use the same verification approach as your working login function
+        if (!publicKey.Verify(messageBytes, signatureBytes))
+        {
+            _logger.LogWarning("Invalid signature for wallet {Wallet}, AppId {AppId}", walletPublicKey, app.Id);
+            return new UserOnboardingResponse { Succeeded = false, Message = "Invalid signature" };
+        }
+        _logger.LogDebug("AppId: {AppId}", app.Id);
+
+        var existingUser = await _dbContext.DAppUsers
+          .AsNoTracking()
+          .FirstOrDefaultAsync(u => u.AppId == app.Id && u.WalletPublicKey == walletPublicKey);
+
+        if (existingUser != null)
+        {
+            _logger.LogInformation("Wallet {Wallet} already signed up for AppId {AppId}, UserId {UserId}",
+              walletPublicKey, app.Id, existingUser.Id);
+            return new UserOnboardingResponse
+            {
+                Succeeded = true,
+                Message = "Wallet already signed up for this app",
+                UserId = existingUser.Id
+            };
+        }
+
+        var userId = Guid.NewGuid();
+        var user = new DAppUser
+        {
+            Id = userId,
+            WalletPublicKey = walletPublicKey,
+            AppId = app.Id,
+            IsEmailVerified = false
+        };
+        _dbContext.DAppUsers.Add(user);
+
+        await _retryPolicy.ExecuteAsync(async () => await _dbContext.SaveChangesAsync());
+        _logger.LogInformation("Signed up new DAppUser with Id {UserId}, Wallet {Wallet}, AppId {AppId}",
+          userId, walletPublicKey, app.Id);
+
+        return new UserOnboardingResponse
+        {
+            Succeeded = true,
+            Message = "Wallet signed up successfully",
+            UserId = userId
+        };
     }
     catch (Exception ex)
     {
-      _logger.LogWarning(ex, "Invalid public key: {WalletPublicKey}", walletPublicKey);
-      return new UserOnboardingResponse { Succeeded = false, Message = "Invalid public key" };
+        _logger.LogError(ex, "Error signing up wallet {Wallet} for AppId {AppId}", walletPublicKey, app.Id);
+        return new UserOnboardingResponse
+        {
+            Succeeded = false,
+            Message = $"Error: {ex.Message}"
+        };
     }
-
-    byte[] signatureBytes;
-    try
-    {
-      signatureBytes = Encoders.Base58.DecodeData(signature);
-      if (signatureBytes.Length != 64)
-      {
-        _logger.LogWarning("Signature length is {Length}, expected 64 bytes for wallet {Wallet}, AppId {AppId}", 
-          signatureBytes.Length, walletPublicKey, app.Id);
-        return new UserOnboardingResponse { Succeeded = false, Message = "Invalid signature length" };
-      }
-    }
-    catch (Exception ex)
-    {
-      _logger.LogWarning(ex, "Failed to decode Base58 signature for wallet {Wallet}, AppId {AppId}", 
-        walletPublicKey, app.Id);
-      return new UserOnboardingResponse { Succeeded = false, Message = "Invalid Base58 signature" };
-    }
-
-    var messageBytes = Encoding.UTF8.GetBytes(message);
-    if (!publicKey.Verify(messageBytes, signatureBytes))
-    {
-      _logger.LogWarning("Invalid signature for wallet {Wallet}, AppId {AppId}", walletPublicKey, app.Id);
-      return new UserOnboardingResponse { Succeeded = false, Message = "Invalid signature" };
-    }
-
-    var existingUser = await _dbContext.DAppUsers
-      .AsNoTracking()
-      .FirstOrDefaultAsync(u => u.AppId == app.Id && u.WalletPublicKey == walletPublicKey);
-
-    if (existingUser != null)
-    {
-      _logger.LogInformation("Wallet {Wallet} already signed up for AppId {AppId}, UserId {UserId}", 
-        walletPublicKey, app.Id, existingUser.Id);
-      return new UserOnboardingResponse
-      {
-        Succeeded = true,
-        Message = "Wallet already signed up",
-        UserId = existingUser.Id
-      };
-    }
-
-    var userId = Guid.NewGuid();
-    var user = new DAppUser
-    {
-      Id = userId,
-      WalletPublicKey = walletPublicKey,
-      AppId = app.Id,
-      IsEmailVerified = false
-    };
-    _dbContext.DAppUsers.Add(user);
-
-    await _retryPolicy.ExecuteAsync(async () => await _dbContext.SaveChangesAsync());
-    _logger.LogInformation("Signed up new DAppUser with Id {UserId}, Wallet {Wallet}, AppId {AppId}", 
-      userId, walletPublicKey, app.Id);
-
-    return new UserOnboardingResponse
-    {
-      Succeeded = true,
-      Message = "Wallet signed up successfully",
-      UserId = userId
-    };
-  }
-  catch (Exception ex)
-  {
-    _logger.LogError(ex, "Error signing up wallet {Wallet} for AppId {AppId}", walletPublicKey, app.Id);
-    return new UserOnboardingResponse
-    {
-      Succeeded = false,
-      Message = $"Error: {ex.Message}"
-    };
-  }
 }
     public async Task<UserOnboardingResponse> VerifyEmailAsync(App app, string email, string verificationCode)
     {

@@ -1,4 +1,89 @@
 using Microsoft.EntityFrameworkCore;
+using Prismon.Api.Data;
+using Prismon.Api.Models;
+
+namespace Prismon.Api.Middleware
+{
+    public class RateLimitMiddleware
+    {
+        private readonly RequestDelegate _next;
+        private readonly ILogger<RateLimitMiddleware> _logger;
+
+        public RateLimitMiddleware(RequestDelegate next, ILogger<RateLimitMiddleware> logger)
+        {
+            _next = next;
+            _logger = logger;
+        }
+
+        public async Task InvokeAsync(HttpContext context, PrismonDbContext dbContext)
+        {
+            if (!context.Request.Path.StartsWithSegments("/devApi"))
+            {
+                await _next(context);
+                return;
+            }
+
+            var apiKey = context.Request.Headers["X-API-Key"].ToString();
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                _logger.LogWarning("Request rejected: Missing X-API-Key");
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsync("Valid X-API-Key required");
+                return;
+            }
+
+            var app = await dbContext.Apps.Include(a => a.Developer).FirstOrDefaultAsync(a => a.ApiKey == apiKey);
+            if (app == null)
+            {
+                _logger.LogWarning("Request rejected: Invalid X-API-Key {ApiKey}", apiKey);
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsync("Invalid X-API-Key");
+                return;
+            }
+
+            // Calculate monthly quota
+            int quota = app.Tier switch
+            {
+                "Premium" => 100_000,
+                "Enterprise" => app.CustomRateLimit ?? 500_000,
+                _ => 10_000 // Free
+            };
+
+            // Get usage count directly from database
+            var startDate = DateTime.UtcNow.AddDays(-30);
+            int usageCount = await dbContext.ApiUsages
+                .Join(dbContext.Apps,
+                    u => u.AppId,
+                    a => a.Id,
+                    (u, a) => new { u, a })
+                .Where(ua => ua.a.DeveloperId == app.DeveloperId && ua.u.Timestamp >= startDate)
+                .CountAsync();
+
+            if (usageCount >= quota)
+            {
+                _logger.LogWarning("Rate limit exceeded for {ApiKey}: {Usage}/{Quota} calls", apiKey, usageCount, quota);
+                context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                await context.Response.WriteAsync("Monthly API call quota exceeded. Please upgrade your plan or try again next month.");
+                return;
+            }
+
+            // Log usage
+            dbContext.ApiUsages.Add(new ApiUsage
+            {
+                Id = Guid.NewGuid(),
+                AppId = app.Id,
+                Timestamp = DateTime.UtcNow,
+                Endpoint = context.Request.Path
+            });
+            await dbContext.SaveChangesAsync();
+
+            _logger.LogInformation("API call logged for {ApiKey}: {Usage}/{Quota} calls", apiKey, usageCount + 1, quota);
+            await _next(context);
+        }
+    }
+}
+
+/***using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
 using Prismon.Api.Data;
@@ -132,4 +217,4 @@ namespace Prismon.Api.Middleware
             await _next(context);
         }
     }
-}
+}*/

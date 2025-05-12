@@ -21,7 +21,7 @@ public class BlobStorageService : IBlobStorageService
     private readonly HttpClient _httpClient;
     private readonly ILogger<BlobStorageService> _logger;
     private readonly string _publisherUrl = "https://publisher.walrus-testnet.walrus.space/v1/blobs";
-    private readonly string _aggregatorUrl = "https://aggregator.walrus-testnet.walrus.space/v1/blobs";
+    private readonly string _aggregatorUrl = "https://aggregator.walrus-testnet.walrus.space";
 
     public BlobStorageService(IRpcClient rpcClient, HttpClient httpClient, ILogger<BlobStorageService> logger)
     {
@@ -100,35 +100,35 @@ public class BlobStorageService : IBlobStorageService
         }
     }
 
-    public async Task<HttpResponseMessage> RetrieveBlobAsync(string walletPublicKey, string blobId, string transactionId)
+   public async Task<HttpResponseMessage> RetrieveBlobAsync(string walletPublicKey, string blobId, string transactionId)
+{
+    try
     {
-        try
-        {
-            // Validate inputs
-            if (string.IsNullOrEmpty(walletPublicKey))
-                throw new ArgumentException("Wallet public key cannot be null or empty", nameof(walletPublicKey));
-            if (string.IsNullOrEmpty(blobId))
-                throw new ArgumentException("Blob ID cannot be null or empty", nameof(blobId));
-            if (string.IsNullOrEmpty(transactionId))
-                throw new ArgumentException("Transaction ID cannot be null or empty", nameof(transactionId));
+        // Validate inputs
+        if (string.IsNullOrEmpty(walletPublicKey))
+            throw new ArgumentException("Wallet public key cannot be null or empty", nameof(walletPublicKey));
+        if (string.IsNullOrEmpty(blobId))
+            throw new ArgumentException("Blob ID cannot be null or empty", nameof(blobId));
+        if (string.IsNullOrEmpty(transactionId))
+            throw new ArgumentException("Transaction ID cannot be null or empty", nameof(transactionId));
 
-            // Verify Solana transaction
-            await VerifyTransaction(walletPublicKey, transactionId, $"Prismon:retrieve:{blobId}");
+        // Verify Solana transaction (if required)
+        //await VerifyTransaction(walletPublicKey, transactionId, $"Prismon:retrieve:{blobId}");
 
-            // Send GET request and return the response directly
-            var response = await _httpClient.GetAsync($"{_aggregatorUrl}/{blobId}");
-            response.EnsureSuccessStatusCode();
+        // Construct the correct URL path (/v1/blobs/{blobId})
+        var response = await _httpClient.GetAsync($"{_aggregatorUrl}/v1/blobs/{blobId}");
+        response.EnsureSuccessStatusCode();
 
-            _logger.LogInformation("Successfully retrieved blob {BlobId} for wallet {Wallet}",
-                blobId, walletPublicKey);
-            return response;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving blob {BlobId} for wallet {Wallet}", blobId, walletPublicKey);
-            throw;
-        }
+        _logger.LogInformation("Successfully retrieved blob {BlobId} for wallet {Wallet}", 
+            blobId, walletPublicKey);
+        return response;
     }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error retrieving blob {BlobId} for wallet {Wallet}", blobId, walletPublicKey);
+        throw;
+    }
+}
 
     public async Task<bool> CertifyBlobAvailabilityAsync(string blobId)
     {

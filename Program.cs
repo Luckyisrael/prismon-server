@@ -17,7 +17,7 @@ using Prismon.Api.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Load .env file for local development
+// Load .env file
 Env.Load();
 
 // Configuration
@@ -167,6 +167,7 @@ builder.Services.AddScoped<IPythPriceFeedService, PythPriceFeedService>();
 builder.Services.AddScoped<IBlobStorageService, BlobStorageService>();
 builder.Services.AddScoped<IAIService, AIService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<ISoarService, SoarService>();
 
 builder.Services.AddScoped<IEmailService>(sp =>
     new EmailService(sp.GetRequiredService<IConfiguration>(), sp.GetRequiredService<ILogger<EmailService>>()));
@@ -222,6 +223,8 @@ using (var scope = app.Services.CreateScope())
         scope.ServiceProvider.GetRequiredService<ISolanaService>();
         scope.ServiceProvider.GetRequiredService<IEmailService>();
         scope.ServiceProvider.GetRequiredService<IAIService>();
+        scope.ServiceProvider.GetRequiredService<IPaymentService>();
+        scope.ServiceProvider.GetRequiredService<ISoarService>();
 
         logger.LogInformation("Dependency injection validated successfully");
     }
@@ -259,9 +262,7 @@ else
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Prismon API v1");
-
-
-        c.RoutePrefix = "api/swagger"; // More secure path
+        c.RoutePrefix = "api/swagger";
         c.ConfigObject.AdditionalItems["persistAuthorization"] = "true";
 
     });

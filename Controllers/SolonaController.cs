@@ -24,10 +24,11 @@ public class SolanaController : ControllerBase
     private readonly SolanaConfig _config;
     private readonly IBlobStorageService _blobStorageService;
     private readonly ILogger<ISolanaService> _logger;
+    private readonly ISoarService _soarService;
 
     private readonly IClientPolicyStore _clientPolicyStore;
 
-    public SolanaController(IClientPolicyStore clientPolicyStore, ISolanaService solanaService, PrismonDbContext dbContext, IOptions<SolanaConfig> config, IBlobStorageService blobStorageService, ILogger<ISolanaService> logger)
+    public SolanaController(ISoarService soarService, IClientPolicyStore clientPolicyStore, ISolanaService solanaService, PrismonDbContext dbContext, IOptions<SolanaConfig> config, IBlobStorageService blobStorageService, ILogger<ISolanaService> logger)
     {
         _blobStorageService = blobStorageService;
         _solanaService = solanaService;
@@ -35,13 +36,14 @@ public class SolanaController : ControllerBase
         _config = config.Value;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _clientPolicyStore = clientPolicyStore;
+        _soarService = soarService;
     }
 
     private async Task<App?> GetAppFromApiKey()
     {
         var apiKey = Request.Headers["X-API-Key"].ToString(); // Convert StringValues to string
         return await _dbContext.Apps.FirstOrDefaultAsync(a => a.ApiKey == apiKey);
-        
+
     }
 
     [Authorize]
@@ -218,36 +220,36 @@ public class SolanaController : ControllerBase
         if (app == null) return Unauthorized("Invalid API key");
 
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-    if (string.IsNullOrEmpty(userId))
-    {
-        _logger.LogError("No user ID in JWT");
-        return Unauthorized("Invalid user session");
-    }
-    
-    _logger.LogDebug("Looking up DAppUser for UserId {UserId}, AppId {AppId}", userId, app.Id);
-    Guid userGuid;
-    if (!Guid.TryParse(userId, out userGuid))
-    {
-        _logger.LogError("Invalid UserId format: {UserId}", userId);
-        return BadRequest("Invalid user ID format");
-    }
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogError("No user ID in JWT");
+            return Unauthorized("Invalid user session");
+        }
 
-    var user = await _dbContext.DAppUsers.FirstOrDefaultAsync(u => u.Id == userGuid && u.AppId == app.Id);
-    if (user == null)
-    {
-        var userAnyApp = await _dbContext.DAppUsers.FirstOrDefaultAsync(u => u.Id == userGuid);
-        _logger.LogWarning(
-            "No DAppUser found for UserId {UserId}, AppId {AppId}. User exists with different AppId: {Exists}, AppId: {OtherAppId}",
-            userId, app.Id, userAnyApp != null, userAnyApp?.AppId
-        );
-        return BadRequest("User not found for this app. Please connect a wallet via /users/connect-wallet.");
-    }
+        _logger.LogDebug("Looking up DAppUser for UserId {UserId}, AppId {AppId}", userId, app.Id);
+        Guid userGuid;
+        if (!Guid.TryParse(userId, out userGuid))
+        {
+            _logger.LogError("Invalid UserId format: {UserId}", userId);
+            return BadRequest("Invalid user ID format");
+        }
 
-    if (user.WalletPublicKey == null)
-    {
-        _logger.LogWarning("No wallet connected for UserId {UserId}", userId);
-        return BadRequest("No wallet connected");
-    }
+        var user = await _dbContext.DAppUsers.FirstOrDefaultAsync(u => u.Id == userGuid && u.AppId == app.Id);
+        if (user == null)
+        {
+            var userAnyApp = await _dbContext.DAppUsers.FirstOrDefaultAsync(u => u.Id == userGuid);
+            _logger.LogWarning(
+                "No DAppUser found for UserId {UserId}, AppId {AppId}. User exists with different AppId: {Exists}, AppId: {OtherAppId}",
+                userId, app.Id, userAnyApp != null, userAnyApp?.AppId
+            );
+            return BadRequest("User not found for this app. Please connect a wallet via /users/connect-wallet.");
+        }
+
+        if (user.WalletPublicKey == null)
+        {
+            _logger.LogWarning("No wallet connected for UserId {UserId}", userId);
+            return BadRequest("No wallet connected");
+        }
 
         var signature = await _solanaService.RaydiumSwapAsync(
             user.WalletPublicKey,
@@ -464,72 +466,118 @@ public class SolanaController : ControllerBase
         }
     }
 
-[Authorize]
-[HttpGet("blob/retrieve/{blobId}")]
-public async Task<IActionResult> RetrieveBlob(string blobId, [FromQuery] string transactionId)
-{
-    if (string.IsNullOrEmpty(blobId) || string.IsNullOrEmpty(transactionId))
-        return BadRequest("BlobId and TransactionId are required");
-
-    var app = await GetAppFromApiKey();
-    if (app == null)
-    {
-        _logger.LogWarning("Invalid API key: {ApiKey}", Request.Headers["X-API-Key"]); 
-        return Unauthorized("Invalid API key");
-    }
-
-    var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-    if (string.IsNullOrEmpty(userId))
-    {
-        _logger.LogError("No user ID in JWT");
-        return Unauthorized("Invalid user session");
-    }
-    
-    _logger.LogDebug("Looking up DAppUser for UserId {UserId}, AppId {AppId}", userId, app.Id);
-    Guid userGuid;
-    if (!Guid.TryParse(userId, out userGuid))
-    {
-        _logger.LogError("Invalid UserId format: {UserId}", userId);
-        return BadRequest("Invalid user ID format");
-    }
-
-    var user = await _dbContext.DAppUsers.FirstOrDefaultAsync(u => u.Id == userGuid && u.AppId == app.Id);
-    if (user == null)
-    {
-        var userAnyApp = await _dbContext.DAppUsers.FirstOrDefaultAsync(u => u.Id == userGuid);
-        _logger.LogWarning(
-            "No DAppUser found for UserId {UserId}, AppId {AppId}. User exists with different AppId: {Exists}, AppId: {OtherAppId}",
-            userId, app.Id, userAnyApp != null, userAnyApp?.AppId
-        );
-        return BadRequest("User not found for this app. Please connect a wallet via /users/connect-wallet.");
-    }
-
-    if (user.WalletPublicKey == null)
-    {
-        _logger.LogWarning("No wallet connected for UserId {UserId}", userId);
-        return BadRequest("No wallet connected");
-    }
-
-    try
+    [Authorize]
+    [HttpGet("blob/retrieve/{blobId}")]
+    public async Task<IActionResult> RetrieveBlob(
+    string blobId,
+    [FromQuery] string transactionId,
+    [FromQuery] string? contentDisposition = null,
+    [FromQuery] string? contentType = null,
+    [FromQuery] string? contentEncoding = null,
+    [FromQuery] string? contentLanguage = null,
+    [FromQuery] string? contentLocation = null)
     {
         if (string.IsNullOrEmpty(blobId) || string.IsNullOrEmpty(transactionId))
-            return BadRequest("Invalid request parameters");
+            return BadRequest("BlobId and TransactionId are required");
 
-        var response = await _blobStorageService.RetrieveBlobAsync(user.WalletPublicKey, blobId, transactionId);
-        
-        // Pass through the content, headers, and status code from the original response
-        return new ContentResult
+        var app = await GetAppFromApiKey();
+        if (app == null)
         {
-            Content = await response.Content.ReadAsStringAsync(),
-            ContentType = response.Content.Headers.ContentType?.ToString(),
-            StatusCode = (int)response.StatusCode
-        };
+            _logger.LogWarning("Invalid API key: {ApiKey}", Request.Headers["X-API-Key"]);
+            return Unauthorized("Invalid API key");
+        }
+
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogError("No user ID in JWT");
+            return Unauthorized("Invalid user session");
+        }
+
+        _logger.LogDebug("Looking up DAppUser for UserId {UserId}, AppId {AppId}", userId, app.Id);
+        if (!Guid.TryParse(userId, out var userGuid))
+        {
+            _logger.LogError("Invalid UserId format: {UserId}", userId);
+            return BadRequest("Invalid user ID format");
+        }
+
+        var user = await _dbContext.DAppUsers.FirstOrDefaultAsync(u => u.Id == userGuid && u.AppId == app.Id);
+        if (user == null)
+        {
+            var userAnyApp = await _dbContext.DAppUsers.FirstOrDefaultAsync(u => u.Id == userGuid);
+            _logger.LogWarning(
+                "No DAppUser found for UserId {UserId}, AppId {AppId}. User exists with different AppId: {Exists}, AppId: {OtherAppId}",
+                userId, app.Id, userAnyApp != null, userAnyApp?.AppId
+            );
+            return BadRequest("User not found for this app. Please connect a wallet via /users/connect-wallet.");
+        }
+
+        if (user.WalletPublicKey == null)
+        {
+            _logger.LogWarning("No wallet connected for UserId {UserId}", userId);
+            return BadRequest("No wallet connected");
+        }
+
+        try
+        {
+            // Create HttpClient with optional headers
+            using var httpClient = new HttpClient();
+
+            // Add Sui object ID headers if provided
+            if (!string.IsNullOrEmpty(contentDisposition))
+                httpClient.DefaultRequestHeaders.Add("content-disposition", contentDisposition);
+            if (!string.IsNullOrEmpty(contentType))
+                httpClient.DefaultRequestHeaders.Add("content-type", contentType);
+            if (!string.IsNullOrEmpty(contentEncoding))
+                httpClient.DefaultRequestHeaders.Add("content-encoding", contentEncoding);
+            if (!string.IsNullOrEmpty(contentLanguage))
+                httpClient.DefaultRequestHeaders.Add("content-language", contentLanguage);
+            if (!string.IsNullOrEmpty(contentLocation))
+                httpClient.DefaultRequestHeaders.Add("content-location", contentLocation);
+
+            var response = await _blobStorageService.RetrieveBlobAsync(user.WalletPublicKey, blobId, transactionId);
+
+            // Create a FileStreamResult to properly handle file downloads with headers
+            var content = await response.Content.ReadAsByteArrayAsync();
+            var result = new FileContentResult(content, response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream");
+
+            // Copy relevant headers from the original response
+            foreach (var header in response.Content.Headers)
+            {
+                if (header.Key.ToLower() != "content-type") // We already set Content-Type
+                {
+                    result.FileDownloadName = header.Key.ToLower() == "content-disposition"
+                        ? GetFileNameFromContentDisposition(header.Value.FirstOrDefault())
+                        : null;
+
+                    Response.Headers.Add(header.Key, header.Value.ToArray());
+                }
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving blob {BlobId} for user {UserId}", blobId, userId);
+            return StatusCode(500, new { Error = "An error occurred while retrieving the blob" });
+        }
     }
-    catch (Exception ex)
+
+    private string? GetFileNameFromContentDisposition(string? contentDisposition)
     {
-        return StatusCode(500, new { Error = ex.Message });
+        if (string.IsNullOrEmpty(contentDisposition)) return null;
+
+        var match = System.Text.RegularExpressions.Regex.Match(contentDisposition, @"filename\*?=['""]?(?:UTF-\d['""]*)?([^;]*?)['""]?;?");
+        if (match.Success)
+        {
+            return match.Groups[1].Value.Trim();
+        }
+
+        match = System.Text.RegularExpressions.Regex.Match(contentDisposition, @"filename=['""]?([^'""]*)['""]?");
+        return match.Success ? match.Groups[1].Value.Trim() : null;
     }
-}
+
+
     [HttpGet("blob/certify/{blobId}")]
     public async Task<IActionResult> CertifyBlob(string blobId)
     {
@@ -555,6 +603,147 @@ public async Task<IActionResult> RetrieveBlob(string blobId, [FromQuery] string 
         var walletAddress = User.FindFirst("walletAddress")?.Value;
         return Ok(new { walletAddress = walletAddress });
     }
+
+    [HttpPost("soar/player")]
+    [Authorize]
+    public async Task<IActionResult> InitializePlayer([FromBody] InitializePlayerRequest request, [FromQuery] string? programId = null)
+    {
+        try
+        {
+            var signature = await _soarService.InitializePlayerAsync(request.UserPublicKey, request.Username, request.NftMeta, programId);
+            return Ok(new { TransactionSignature = signature });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initialize player for {UserPublicKey}", request.UserPublicKey);
+            return StatusCode(500, "Error initializing player profile");
+        }
+    }
+
+    [HttpPost("soar/leaderboard")]
+    [Authorize]
+    public async Task<IActionResult> CreateLeaderboard([FromBody] CreateLeaderboardRequest request, [FromQuery] string? programId = null)
+    {
+        try
+        {
+            var signature = await _soarService.CreateLeaderboardAsync(
+                request.GamePublicKey,
+                request.Description,
+                request.NftMeta,
+                request.ScoresToRetain,
+                request.IsAscending,
+                programId
+            );
+            return Ok(new { TransactionSignature = signature });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create leaderboard for {GamePublicKey}", request.GamePublicKey);
+            return StatusCode(500, "Error creating leaderboard");
+        }
+    }
+
+    [HttpPost("soar/score")]
+    [Authorize]
+    public async Task<IActionResult> SubmitScore([FromBody] SubmitScoreRequest request, [FromQuery] string? programId = null)
+    {
+        try
+        {
+            var signature = await _soarService.SubmitScoreAsync(
+                request.PlayerPublicKey,
+                request.GamePublicKey,
+                request.LeaderboardPublicKey,
+                request.Score,
+                programId
+            );
+            return Ok(new { TransactionSignature = signature });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to submit score for {PlayerPublicKey}", request.PlayerPublicKey);
+            return StatusCode(500, "Error submitting score");
+        }
+    }
+
+    [HttpPost("soar/achievement")]
+    [Authorize]
+    public async Task<IActionResult> CreateAchievement([FromBody] CreateAchievementRequest request, [FromQuery] string? programId = null)
+    {
+        try
+        {
+            var signature = await _soarService.CreateAchievementAsync(
+                request.GamePublicKey,
+                request.Title,
+                request.Description,
+                request.NftMeta,
+                programId
+            );
+            return Ok(new { TransactionSignature = signature });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create achievement for {GamePublicKey}", request.GamePublicKey);
+            return StatusCode(500, "Error creating achievement");
+        }
+    }
+
+    [HttpPost("soar/claim-achievement")]
+    [Authorize]
+    public async Task<IActionResult> ClaimAchievement([FromBody] ClaimAchievementRequest request, [FromQuery] string? programId = null)
+    {
+        try
+        {
+            var signature = await _soarService.ClaimAchievementAsync(
+                request.PlayerPublicKey,
+                request.GamePublicKey,
+                request.AchievementPublicKey,
+                programId
+            );
+            return Ok(new { TransactionSignature = signature });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to claim achievement for {PlayerPublicKey}", request.PlayerPublicKey);
+            return StatusCode(500, "Error claiming achievement");
+        }
+    }
+    [HttpPost("soar/claim-reward")]
+    [Authorize]
+    public async Task<IActionResult> ClaimReward([FromBody] ClaimRewardRequest request, [FromQuery] string? programId = null)
+    {
+        try
+        {
+            var signature = await _soarService.ClaimRewardAsync(
+                request.PlayerPublicKey,
+                request.GamePublicKey,
+                request.LeaderboardPublicKey,
+                programId
+            );
+            return Ok(new { TransactionSignature = signature });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to claim reward for {PlayerPublicKey}", request.PlayerPublicKey);
+            return StatusCode(500, "Error claiming reward");
+        }
+    }
+
+    [HttpGet("soar/player")]
+    [Authorize]
+    public async Task<IActionResult> GetPlayerProfile([FromQuery] string playerPublicKey, [FromQuery] string? programId = null)
+    {
+        try
+        {
+            var profile = await _soarService.GetPlayerProfileAsync(playerPublicKey, programId);
+            return Ok(profile);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get player profile for {PlayerPublicKey}", playerPublicKey);
+            return StatusCode(500, "Error retrieving player profile");
+        }
+    }
+
 }
 
 public class TransferRequest

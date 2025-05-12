@@ -311,14 +311,14 @@ public class AIService : IAIService
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", decryptedApiKey);
             }
 
-            var payload = new { inputs = inputData };
+            //var payload = new { inputs = inputData };
             // DeMCP chat completions format
-            /*var payload = new
+            var payload = new
             {
                 model = string.IsNullOrEmpty(modelName) ? model.ModelName : modelName,
                 messages = new[] { new { role = "user", content = inputData } },
                 stream = false
-            };*/
+            };
             request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
             var response = await client.SendAsync(request);
