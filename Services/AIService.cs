@@ -75,6 +75,7 @@ public class AIService : IAIService
                 InputType = config.InputType,
                 OutputType = config.OutputType,
                 ExternalApiUrl = config.ExternalApiUrl,
+                ModelName = config.ModelName,
                 ExternalApiKey = string.IsNullOrEmpty(config.ExternalApiKey)
                     ? string.Empty
                     : _protector.Protect(config.ExternalApiKey) // Encrypt API key
@@ -300,68 +301,85 @@ public class AIService : IAIService
     }
 
     private async Task<string> InvokeExternalAPI(AIModel model, string inputData, string modelName = "")
+{
+    try
     {
-        try
+        var client = _httpClientFactory.CreateClient();
+        var request = new HttpRequestMessage(HttpMethod.Post, model.ExternalApiUrl);
+        if (!string.IsNullOrEmpty(model.ExternalApiKey))
         {
-            var client = _httpClientFactory.CreateClient();
-            var request = new HttpRequestMessage(HttpMethod.Post, model.ExternalApiUrl);
-            if (!string.IsNullOrEmpty(model.ExternalApiKey))
-            {
-                var decryptedApiKey = _protector.Unprotect(model.ExternalApiKey);
-                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", decryptedApiKey);
-            }
-
-            //var payload = new { inputs = inputData };
-            // DeMCP chat completions format
-            var payload = new
-            {
-                model = string.IsNullOrEmpty(modelName) ? model.ModelName : modelName,
-                messages = new[] { new { role = "user", content = inputData } },
-                stream = false
-            };
-            request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-
-            var response = await client.SendAsync(request);
-            response.EnsureSuccessStatusCode();
-
-            var output = await response.Content.ReadAsStringAsync();
-            _logger.LogDebug("Received external API response for model {ModelId}: {Response}", model.Id, output);
-
-            if (model.OutputType == "Json")
-            {
-                return output; // Return raw JSON if OutputType is Json
-            }
-
-            // Parse the response as a JSON element
-            var jsonElement = JsonSerializer.Deserialize<JsonElement>(output);
-
-            // Handle array response (common for Hugging Face models)
-            if (jsonElement.ValueKind == JsonValueKind.Array && jsonElement.GetArrayLength() > 0)
-            {
-                var firstElement = jsonElement[0];
-                if (firstElement.ValueKind == JsonValueKind.Object && firstElement.TryGetProperty("generated_text", out var generatedText))
-                {
-                    return generatedText.GetString() ?? string.Empty;
-                }
-                _logger.LogWarning("No 'generated_text' property found in array response for model {ModelId}", model.Id);
-                return string.Empty;
-            }
-
-            // Handle single string response
-            if (jsonElement.ValueKind == JsonValueKind.String)
-            {
-                return jsonElement.GetString() ?? string.Empty;
-            }
-
-            _logger.LogWarning("Unexpected response format for model {ModelId}: {Response}", model.Id, output);
-            return string.Empty;
+            var decryptedApiKey = _protector.Unprotect(model.ExternalApiKey);
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", decryptedApiKey);
         }
-        catch (Exception ex)
+
+        // Use the model name from parameter, model object, or default
+        var actualModelName = string.IsNullOrEmpty(modelName) ? model.ModelName : modelName;
+        
+        // Create payload in chat completions format
+        var payload = new
         {
-            _logger.LogError(ex, "Error invoking external API for model {ModelId}", model.Id);
-            throw;
+            model = actualModelName,
+            messages = new[] { new { role = "user", content = inputData } },
+            stream = false
+        };
+        
+        request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+
+        var response = await client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+
+        var output = await response.Content.ReadAsStringAsync();
+        _logger.LogDebug("Received external API response for model {ModelId}: {Response}", model.Id, output);
+
+        if (model.OutputType == "Json")
+        {
+            return output; // Return raw JSON if OutputType is Json
         }
+
+        // Parse the response
+        var jsonElement = JsonSerializer.Deserialize<JsonElement>(output);
+
+        // Case 1: Handle chat completions format (like Fireworks AI and OpenAI)
+        if (jsonElement.ValueKind == JsonValueKind.Object && 
+            jsonElement.TryGetProperty("choices", out var choices) &&
+            choices.ValueKind == JsonValueKind.Array &&
+            choices.GetArrayLength() > 0)
+        {
+            var firstChoice = choices[0];
+            if (firstChoice.TryGetProperty("message", out var message) &&
+                message.TryGetProperty("content", out var content))
+            {
+                return content.GetString() ?? string.Empty;
+            }
+        }
+
+        // Case 2: Handle traditional Hugging Face format (array with generated_text)
+        if (jsonElement.ValueKind == JsonValueKind.Array && jsonElement.GetArrayLength() > 0)
+        {
+            var firstElement = jsonElement[0];
+            if (firstElement.ValueKind == JsonValueKind.Object && 
+                firstElement.TryGetProperty("generated_text", out var generatedText))
+            {
+                return generatedText.GetString() ?? string.Empty;
+            }
+        }
+
+        // Case 3: Handle single string response
+        if (jsonElement.ValueKind == JsonValueKind.String)
+        {
+            return jsonElement.GetString() ?? string.Empty;
+        }
+
+        _logger.LogWarning("Unexpected response format for model {ModelId}: {Response}", model.Id, output);
+        return string.Empty;
     }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error invoking external API for model {ModelId}", model.Id);
+        throw;
+    }
+}
+
 
 private async Task<string> InvokeMCPModel(AIModel model, string inputData, string transport, string modelName = "")
 {

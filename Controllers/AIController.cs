@@ -1,4 +1,4 @@
-namespace Prismon.Api.Controllers;
+using System;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -7,16 +7,16 @@ using Prismon.Api.Data;
 using Prismon.Api.Interface;
 using Prismon.Api.Models;
 
+namespace Prismon.Api.Controllers;
+
 [Route("devApi/[controller]")]
 [ApiController]
-
 public class AIController : ControllerBase
 {
     private readonly IAIService _aiService;
     private readonly ILogger<AIController> _logger;
     private readonly PrismonDbContext _dbContext;
 
-    // Ensure this is the ONLY constructor for this class
     public AIController(IAIService aiService, ILogger<AIController> logger, PrismonDbContext dbContext)
     {
         _aiService = aiService ?? throw new ArgumentNullException(nameof(aiService));
@@ -67,6 +67,7 @@ public class AIController : ControllerBase
             _logger.LogWarning("Invalid model registration request");
             return BadRequest(ModelState);
         }
+        
         var app = await GetAppFromApiKey();
         if (app == null)
         {
@@ -90,16 +91,26 @@ public class AIController : ControllerBase
             if (!registerResponse.Succeeded)
             {
                 _logger.LogWarning("Model registration failed for AppId {AppId}", appId);
-                return BadRequest(new { Message = registerResponse.Message ?? "Failed to register model" });
+                return BadRequest(new { 
+                    Succeeded = false,
+                    Message = registerResponse.Message ?? "Failed to register model" 
+                });
             }
 
-            _logger.LogInformation("Model registered successfully for AppId {AppId}", appId);
-            return Ok(new { Message = "Model registered successfully" });
+            _logger.LogInformation("Model registered successfully for AppId {AppId}, ModelId {ModelId}", appId, registerResponse.ModelId);
+            return Ok(new { 
+                Succeeded = true,
+                ModelId = registerResponse.ModelId,
+                Message = "Model registered successfully" 
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error registering model for AppId");
-            return StatusCode(500, new { Message = "Failed to register model" });
+            return StatusCode(500, new { 
+                Succeeded = false,
+                Message = "Failed to register model" 
+            });
         }
     }
 
@@ -114,6 +125,30 @@ public class AIController : ControllerBase
 
         return Ok(new { Exists = exists });
     }
+
+    [HttpGet("models")]
+    public async Task<IActionResult> GetModels()
+    {
+        var app = await GetAppFromApiKey();
+        if (app == null) return Unauthorized();
+
+        var models = await _dbContext.AIModels
+            .Where(m => m.AppId == app.Id)
+            .Select(m => new {
+                m.Id,
+                m.Name,
+                m.Type,
+                m.InputType,
+                m.OutputType,
+                m.ModelName,
+                HasApiKey = !string.IsNullOrEmpty(m.ExternalApiKey),
+                m.CreatedAt
+            })
+            .ToListAsync();
+
+        return Ok(models);
+    }
+
     private async Task<App?> GetAppFromApiKey()
     {
         var apiKey = Request.Headers["X-API-Key"].ToString();
