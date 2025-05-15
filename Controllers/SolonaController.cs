@@ -46,7 +46,7 @@ public class SolanaController : ControllerBase
 
     }
 
-    
+    [Authorize]
     [HttpGet("balance")]
     public async Task<IActionResult> GetBalance([FromQuery] string walletPublicKey)
     {
@@ -57,7 +57,7 @@ public class SolanaController : ControllerBase
         return Ok(new { balance });
     }
 
-    
+    [Authorize]
     [HttpGet("token-accounts")]
     public async Task<IActionResult> GetTokenAccounts()
     {
@@ -72,7 +72,7 @@ public class SolanaController : ControllerBase
         return Ok(accounts);
     }
 
-    
+    [Authorize]
     [HttpPost("transfer")]
     public async Task<IActionResult> Transfer([FromBody] TransferRequest request)
     {
@@ -87,7 +87,7 @@ public class SolanaController : ControllerBase
         return Ok(new { signature });
     }
 
-    
+    [Authorize]
     [HttpPost("mint")]
     public async Task<IActionResult> Mint([FromBody] MintRequest request)
     {
@@ -102,7 +102,7 @@ public class SolanaController : ControllerBase
         return Ok(new { signature });
     }
 
-    
+    [Authorize]
     [HttpGet("transaction")]
     public async Task<IActionResult> GetTransaction([FromQuery] string signature)
     {
@@ -113,7 +113,7 @@ public class SolanaController : ControllerBase
         return Ok(transaction);
     }
 
-    
+    [Authorize]
     [HttpPost("create-wallet")]
     public async Task<IActionResult> CreateWallet()
     {
@@ -126,7 +126,7 @@ public class SolanaController : ControllerBase
 
     /*
        // --- Metaplex Endpoints ---
-    
+    [Authorize]
     [HttpPost("nft/mint")]
     public async Task<IActionResult> MintNFT([FromBody] MintNFTRequest request)
     {
@@ -142,7 +142,7 @@ public class SolanaController : ControllerBase
         return Ok(new { mint = signature });
     }
 
-      
+      [Authorize]
     [HttpPut("nft/update")]
     public async Task<IActionResult> UpdateNFTMetadata([FromBody] UpdateNFTRequest request)
     {
@@ -159,7 +159,7 @@ public class SolanaController : ControllerBase
     }
 
 
-    
+    [Authorize]
     [HttpPost("nft/collection")]
     public async Task<IActionResult> CreateCollection([FromBody] CreateCollectionRequest request)
     {
@@ -176,7 +176,7 @@ public class SolanaController : ControllerBase
 
     **/
     // --- Jupiter Swap Endpoint ---
-    
+    [Authorize]
     [HttpPost("swap")]
     public async Task<IActionResult> SwapTokens([FromBody] SwapRequest request)
     {
@@ -191,7 +191,7 @@ public class SolanaController : ControllerBase
         return Ok(new { signature });
     }
 
-    
+    [Authorize]
     [HttpPost("token/create")]
     public async Task<IActionResult> CreateToken([FromBody] CreateTokenRequest request)
     {
@@ -212,7 +212,7 @@ public class SolanaController : ControllerBase
         return Ok(new { mint });
     }
 
-    
+    [Authorize]
     [HttpPost("raydium/swap")]
     public async Task<IActionResult> RaydiumSwap([FromBody] RaydiumSwapRequest request)
     {
@@ -262,7 +262,7 @@ public class SolanaController : ControllerBase
         return Ok(new { signature, cluster = _config.Cluster });
     }
 
-    
+    [Authorize]
     [HttpPost("pumpfun/buy")]
     public async Task<IActionResult> PumpfunBuy([FromBody] PumpfunBuyRequest request)
     {
@@ -313,7 +313,7 @@ public class SolanaController : ControllerBase
         return Ok(new { signature, cluster = _config.Cluster });
     }
 
-    
+    [Authorize]
     [HttpPost("pumpfun/sell")]
     public async Task<IActionResult> PumpfunSell([FromBody] PumpfunSellRequest request)
     {
@@ -364,7 +364,7 @@ public class SolanaController : ControllerBase
         return Ok(new { signature, cluster = _config.Cluster });
     }
 
-    
+    [Authorize]
     [HttpPost("ore/open-proof")]
     public async Task<IActionResult> OreOpenProof([FromBody] OreOpenProofRequest request)
     {
@@ -379,7 +379,7 @@ public class SolanaController : ControllerBase
         return Ok(new { proofAddress, balance, cluster = _config.Cluster });
     }
 
-    
+    [Authorize]
     [HttpPost("ore/mine-claim")]
     public async Task<IActionResult> OreMineAndClaim([FromBody] OreMineClaimRequest request)
     {
@@ -400,7 +400,7 @@ public class SolanaController : ControllerBase
         return Ok(new { signature, cluster = _config.Cluster });
     }
 
-
+    [Authorize]
     [HttpPost("blob/store")]
     public async Task<IActionResult> StoreBlob([FromBody] StoreBlobRequest request)
     {
@@ -466,7 +466,7 @@ public class SolanaController : ControllerBase
         }
     }
 
-
+    [Authorize]
     [HttpGet("blob/retrieve/{blobId}")]
     public async Task<IActionResult> RetrieveBlob(
     string blobId,
@@ -605,7 +605,7 @@ public class SolanaController : ControllerBase
     }
 
     [HttpPost("soar/player")]
-    
+    [Authorize]
     public async Task<IActionResult> InitializePlayer([FromBody] InitializePlayerRequest request, [FromQuery] string? programId = null)
     {
         try
@@ -621,7 +621,7 @@ public class SolanaController : ControllerBase
     }
 
     [HttpPost("soar/leaderboard")]
-    
+    [Authorize]
     public async Task<IActionResult> CreateLeaderboard([FromBody] CreateLeaderboardRequest request, [FromQuery] string? programId = null)
     {
         try
@@ -644,7 +644,7 @@ public class SolanaController : ControllerBase
     }
 
     [HttpPost("soar/score")]
-    
+    [Authorize]
     public async Task<IActionResult> SubmitScore([FromBody] SubmitScoreRequest request, [FromQuery] string? programId = null)
     {
         try
@@ -666,7 +666,7 @@ public class SolanaController : ControllerBase
     }
 
     [HttpPost("soar/achievement")]
-    
+    [Authorize]
     public async Task<IActionResult> CreateAchievement([FromBody] CreateAchievementRequest request, [FromQuery] string? programId = null)
     {
         try
@@ -688,7 +688,7 @@ public class SolanaController : ControllerBase
     }
 
     [HttpPost("soar/claim-achievement")]
-    
+    [Authorize]
     public async Task<IActionResult> ClaimAchievement([FromBody] ClaimAchievementRequest request, [FromQuery] string? programId = null)
     {
         try
@@ -708,7 +708,7 @@ public class SolanaController : ControllerBase
         }
     }
     [HttpPost("soar/claim-reward")]
-    
+    [Authorize]
     public async Task<IActionResult> ClaimReward([FromBody] ClaimRewardRequest request, [FromQuery] string? programId = null)
     {
         try
@@ -729,7 +729,7 @@ public class SolanaController : ControllerBase
     }
 
     [HttpGet("soar/player")]
-    
+    [Authorize]
     public async Task<IActionResult> GetPlayerProfile([FromQuery] string playerPublicKey, [FromQuery] string? programId = null)
     {
         try
