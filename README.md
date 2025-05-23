@@ -3,6 +3,9 @@
 ## Link to our official SDK 
 # https://lucky-israel.gitbook.io/prismon-docs/getting-started/quickstart
 
+# Example Project fully powered by Prismon
+# https://prismon-sentiment-analysis.vercel.app/
+
 Prismon is a powerful, developer-friendly API platform for building Solana-based applications, with seamless integration of MagicBlock's SOAR (Solana On-Chain Achievements and Rankings) program. Designed to empower developers in Nigeria and globally, Prismon provides real-time, scalable APIs for Solana blockchain interactions, including gamification features like leaderboards, achievements, player profiles, and automated rewards distribution. With affordable pricing via Paystack (NGN/USD), robust rate limiting, and low-latency execution powered by MagicBlock's Ephemeral Rollups, Prismon is the go-to solution for gaming, DeFi, and Web3 developers.
 
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
@@ -111,7 +114,7 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## 📬 Contact
 
-- **Twitter**: [@yourusername](https://twitter.com/iluckyisrael)
+- **Twitter**: [@iluckyisrael](https://twitter.com/iluckyisrael)
 - **Email**: luckyisrael4real@gmail.com
 - **MagicBlock**: Reach out to [@magicblock](https://twitter.com/magicblock) for SOAR collaboration!
 
