@@ -1,10 +1,10 @@
 # Prismon: A Solana Developer Platform
 
-## Link to our official SDK 
-# https://lucky-israel.gitbook.io/prismon-docs/getting-started/quickstart
+# Link to our official SDK 
+https://lucky-israel.gitbook.io/prismon-docs/getting-started/quickstart
 
 # Example Project fully powered by Prismon
-# https://prismon-sentiment-analysis.vercel.app/
+https://prismon-sentiment-analysis.vercel.app/
 
 Prismon is a powerful, developer-friendly API platform for building Solana-based applications, with seamless integration of MagicBlock's SOAR (Solana On-Chain Achievements and Rankings) program. Designed to empower developers in Nigeria and globally, Prismon provides real-time, scalable APIs for Solana blockchain interactions, including gamification features like leaderboards, achievements, player profiles, and automated rewards distribution. With affordable pricing via Paystack (NGN/USD), robust rate limiting, and low-latency execution powered by MagicBlock's Ephemeral Rollups, Prismon is the go-to solution for gaming, DeFi, and Web3 developers.
 
