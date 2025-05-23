@@ -1,12 +1,15 @@
-# Prismon: A Solana Developer Platform
+## Prismon: A Solana Developer Platform
 
-# Link to our official SDK 
+### Link to our official SDK 
 https://lucky-israel.gitbook.io/prismon-docs/getting-started/quickstart
 
-# Example Project fully powered by Prismon
+### Link to our official website
+https://prismondev.vercel.app
+
+### Example Project fully powered by Prismon
 https://prismon-sentiment-analysis.vercel.app/
 
-Prismon is a powerful, developer-friendly API platform for building Solana-based applications, with seamless integration of MagicBlock's SOAR (Solana On-Chain Achievements and Rankings) program. Designed to empower developers in Nigeria and globally, Prismon provides real-time, scalable APIs for Solana blockchain interactions, including gamification features like leaderboards, achievements, player profiles, and automated rewards distribution. With affordable pricing via Paystack (NGN/USD), robust rate limiting, and low-latency execution powered by MagicBlock's Ephemeral Rollups, Prismon is the go-to solution for gaming, DeFi, and Web3 developers.
+Prismon is a powerful, developer-friendly platform for building Solana-based applications, with seamless integration of MagicBlock's SOAR (Solana On-Chain Achievements and Rankings), Solana integrations, AI integration, Pyth Network Integration, Decentralised storage with walrus protocol. Designed to empower developers in Nigeria and globally, Prismon provides real-time, scalable APIs for Solana blockchain interactions, including gamification features like leaderboards, achievements, player profiles, and automated rewards distribution. With affordable pricing via Paystack (NGN/USD), robust rate limiting, and low-latency execution powered by MagicBlock's Ephemeral Rollups, Prismon is the go-to solution for gaming, DeFi, and Web3 developers.
 
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Build Status](https://img.shields.io/badge/Build-Passing-green.svg)
@@ -60,7 +63,7 @@ Prismon leverages SOAR to bring gamification to Solana dApps, with low-latency e
 
 **Full Docs**: Swagger UI (available when running locally).
 
-## https://prismon-api-b2aeetbkezhwdhg3.southafricanorth-01.azurewebsites.net/api/swagger/index.html
+### https://prismon-api-b2aeetbkezhwdhg3.southafricanorth-01.azurewebsites.net/api/swagger/index.html
 
 ### Architecture
 
@@ -76,7 +79,6 @@ Prismon leverages SOAR to bring gamification to Solana dApps, with low-latency e
 
 ### SOAR Integration
 
-- **Program ID**: `SoarNNzwQHMwcfdkdLc6kvbkoMSxcHy89gTHrjhJYkk`.
 - **Features**:
   - Leaderboards: `AddLeaderboard`, `SubmitScore`.
   - Achievements: `AddAchievement`, `UnlockPlayerAchievement`.
@@ -107,6 +109,8 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## 🙌 Acknowledgements
 
+- **Pyth Network**: For providing crypto prices in real time
+- **WalrusProtocol**: For providing decentralised storage.
 - **MagicBlock**: For SOAR and Ephemeral Rollups, enabling real-time, composable Solana dApps.
 - **Solana**: For a high-performance blockchain.
 - **Paystack**: For seamless NGN/USD payments, empowering Nigerian developers.
@@ -117,10 +121,6 @@ This project is licensed under the [MIT License](LICENSE).
 - **Twitter**: [@iluckyisrael](https://twitter.com/iluckyisrael)
 - **Email**: luckyisrael4real@gmail.com
 - **MagicBlock**: Reach out to [@magicblock](https://twitter.com/magicblock) for SOAR collaboration!
-
-## 🌍 Why Prismon?
-
-Prismon bridges Solana's power with MagicBlock's gamification, making advanced blockchain features accessible to developers worldwide. By integrating SOAR, we enable real-time leaderboards, achievements, and rewards for gaming and DeFi dApps, with a focus on affordability (Paystack NGN payments) and performance (<50ms latency). Whether you're a Nigerian studio building an esports game or a global DeFi protocol rewarding users, Prismon is your platform to shine on Solana.
 
 **Star this repo to support our mission, and let's build the future of Web3 together!** 🚀
 
